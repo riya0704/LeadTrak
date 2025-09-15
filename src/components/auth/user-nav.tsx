@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 
-import { AuthContext } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,19 +18,19 @@ import {
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export function UserNav() {
-  const { user, logout } = React.useContext(AuthContext);
+  const { user, logout } = useAuth();
   const router = useRouter();
 
   if (!user) {
     return null;
   }
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
+  const handleLogout = async () => {
+    await logout();
   };
   
   const getInitials = (name: string) => {
+    if (!name) return 'U';
     const names = name.split(' ');
     if (names.length > 1) {
       return `${names[0][0]}${names[names.length - 1][0]}`;
@@ -53,7 +53,7 @@ export function UserNav() {
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user.name}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user.role}
+              {user.email}
             </p>
           </div>
         </DropdownMenuLabel>

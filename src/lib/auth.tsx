@@ -1,59 +1,96 @@
 'use client';
 
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { User } from './types';
+import { supabase } from './supabase/client';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (user: User) => void;
-  logout: () => void;
+  login: (data: { email: string }) => Promise<any>;
+  logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  login: () => {},
-  logout: () => {},
+  login: async () => {},
+  logout: async () => {},
 });
 
 // This is a server-side "session" store for the demo.
 // In a real app, this would be a secure, server-side session management system.
 let currentUser: User | null = null;
 export async function getCurrentUser(): Promise<User | null> {
-    return currentUser;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        return {
+            id: user.id,
+            name: user.email || 'User',
+            role: 'USER', // default role, can be expanded
+        }
+    }
+    return null;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    // In a real app, you'd fetch the user session from an API or cookie.
-    // Here we use sessionStorage to persist the "logged-in" state across reloads.
-    try {
-      const storedUser = sessionStorage.getItem('lead-trak-user');
-      if (storedUser) {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        currentUser = parsedUser;
-      }
-    } catch (error) {
-      console.error("Could not parse user from sessionStorage", error);
-    }
-    setLoading(false);
-  }, []);
+    const getSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            const user = session.user;
+            setUser({
+                id: user.id,
+                name: user.email || 'User',
+                role: 'USER' // Assign a default role
+            });
+        }
+        setLoading(false);
+    };
+    
+    getSession();
 
-  const login = (user: User) => {
-    setUser(user);
-    currentUser = user;
-    sessionStorage.setItem('lead-trak-user', JSON.stringify(user));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (session) {
+          const user = session.user;
+          setUser({
+            id: user.id,
+            name: user.email || 'User',
+            role: 'USER'
+          });
+          router.push('/buyers');
+        } else {
+          setUser(null);
+          router.push('/login');
+        }
+      }
+    );
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [router]);
+
+  const login = async (data: { email: string }) => {
+    return supabase.auth.signInWithOtp({ 
+        email: data.email,
+        options: {
+            emailRedirectTo: window.location.origin + '/buyers',
+        }
+    });
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    currentUser = null;
-    sessionStorage.removeItem('lead-trak-user');
+    router.push('/login');
   };
 
   return (
@@ -62,3 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};

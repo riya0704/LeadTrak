@@ -4,127 +4,30 @@ import { db } from './db';
 import { buyers, buyerHistory as buyerHistoryTable, users } from './db/schema';
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
+import { getCurrentUser } from './auth';
 
 async function seedData() {
     // Check if users exist, if not, create them
     const existingUsers = await db.select().from(users);
     if (existingUsers.length === 0) {
-        await db.insert(users).values([
-            { id: 'standard-user-id', name: 'Standard User', role: 'USER' },
-            { id: 'admin-user-id', name: 'Admin User', role: 'ADMIN' },
-        ]);
+        // With Supabase auth, we don't need to seed users this way.
+        // Users will be created in the 'auth.users' table upon signup.
+        // We might need to handle profile creation via triggers later.
     }
   
     // Check if buyers exist, if not, create them
-    const existingBuyers = await db.select().from(buyers);
-    if (existingBuyers.length === 0) {
-        await db.insert(buyers).values([
-            {
-                id: '1',
-                fullName: 'Aarav Sharma',
-                email: 'aarav.sharma@email.com',
-                phone: '9876543210',
-                city: 'Chandigarh',
-                propertyType: 'Apartment',
-                bhk: '3',
-                purpose: 'Buy',
-                budgetMin: 8000000,
-                budgetMax: 10000000,
-                timeline: '0-3m',
-                source: 'Website',
-                status: 'New',
-                notes: 'Looking for a spacious apartment in a prime location.',
-                tags: [{value: 'urgent'}, {value: 'family'}],
-                ownerId: 'standard-user-id',
-                updatedAt: new Date('2023-10-26T10:00:00Z'),
-            },
-            {
-                id: '2',
-                fullName: 'Priya Patel',
-                phone: '8765432109',
-                email: 'priya.patel@email.com',
-                city: 'Mohali',
-                propertyType: 'Villa',
-                bhk: '4',
-                purpose: 'Buy',
-                budgetMin: 15000000,
-                budgetMax: 20000000,
-                timeline: '3-6m',
-                source: 'Referral',
-                status: 'Qualified',
-                notes: 'Wants a villa with a garden. Referred by an old client.',
-                tags: [{value: 'luxury'}, {value: 'garden'}],
-                ownerId: 'admin-user-id',
-                updatedAt: new Date('2023-10-25T14:30:00Z'),
-            },
-            {
-                id: '3',
-                fullName: 'Rohan Gupta',
-                phone: '7654321098',
-                email: '',
-                city: 'Panchkula',
-                propertyType: 'Plot',
-                purpose: 'Buy',
-                budgetMin: 5000000,
-                budgetMax: 7000000,
-                timeline: '>6m',
-                source: 'Walk-in',
-                status: 'Contacted',
-                notes: 'Interested in investment plots. Visited the office yesterday.',
-                tags: [{value: 'investment'}],
-                bhk: undefined,
-                ownerId: 'standard-user-id',
-                updatedAt: new Date('2023-10-24T11:00:00Z'),
-            },
-            {
-                id: '4',
-                fullName: 'Sunita Singh',
-                phone: '6543210987',
-                email: 'sunita.singh@email.com',
-                city: 'Zirakpur',
-                propertyType: 'Apartment',
-                bhk: '2',
-                purpose: 'Rent',
-                budgetMin: 15000,
-                budgetMax: 20000,
-                timeline: '0-3m',
-                source: 'Call',
-                status: 'Visited',
-                notes: 'Needs a 2BHK for rent near her office. Visited 3 properties.',
-                tags: [{value: 'rental'}, {value: 'urgent'}],
-                ownerId: 'admin-user-id',
-                updatedAt: new Date('2023-10-22T16:20:00Z'),
-            },
-            ...Array.from({ length: 16 }, (_, i) => ({
-                id: `${i + 5}`,
-                fullName: `Lead Number ${i + 5}`,
-                email: `lead${i+5}@email.com`,
-                phone: `99999999${(10 + i).toString().padStart(2, '0')}`,
-                city: 'Chandigarh' as const,
-                propertyType: 'Apartment' as const,
-                bhk: '2' as const,
-                purpose: 'Buy' as const,
-                budgetMin: 5000000 + i * 100000,
-                budgetMax: 6000000 + i * 100000,
-                timeline: 'Exploring' as const,
-                source: 'Website' as const,
-                status: 'New' as const,
-                notes: `This is a generated lead number ${i + 5}.`,
-                tags: [],
-                ownerId: 'standard-user-id',
-                updatedAt: new Date(Date.now() - i * 1000 * 3600 * 24),
-            })),
-        ]);
-        
-        await db.insert(buyerHistoryTable).values([
-            {
-                id: 'hist-1',
-                buyerId: '2',
-                changedAt: new Date('2023-10-25T14:30:00Z'),
-                changedBy: { id: 'admin-user-id', name: 'Admin User', role: 'ADMIN' },
-                diff: { status: ['New', 'Qualified'] }
-            }
-        ]);
+    const existingBuyersCount = await db.select({ count: sql<number>`count(*)` }).from(buyers);
+    if (existingBuyersCount[0].count === 0) {
+        const adminUser = { id: 'admin-user-id', name: 'Admin User', role: 'ADMIN' as const };
+        const standardUser = { id: 'standard-user-id', name: 'Standard User', role: 'USER' as const };
+
+        // For seeding, we'll need some user IDs. In a real scenario, these would
+        // come from your actual Supabase users. For now, we can't be sure what the IDs
+        // will be, so we can't reliably seed data owned by specific users.
+        // We will make all seeded data owned by a placeholder or skip ownership for seeds.
+        // Or, we check for a user from supabase and assign it.
+        // For this demo, let's assume we can't know the user ID, so we can't seed.
+        console.log("Database is empty, but cannot seed without a logged-in user to own the data.");
     }
 }
 
@@ -211,6 +114,8 @@ export async function updateLead(data: Buyer, user: User): Promise<{success: boo
     return { success: false, error: 'Lead not found' };
   }
 
+  // With Supabase RLS, the database will enforce ownership.
+  // We can keep this check for a better UX, but RLS is the security boundary.
   if (user.role !== 'ADMIN' && oldLead.ownerId !== user.id) {
     return { success: false, error: 'You do not have permission to edit this lead.' };
   }
@@ -254,8 +159,15 @@ export async function getLeadHistory(buyerId: string, limit: number = 5): Promis
     return history.map(h => ({ ...h, changedAt: h.changedAt.toISOString()}));
 }
 
-// Add this function to fetch a user by ID to resolve foreign key constraints
+// This function is no longer needed as we are not seeding users
 export async function getUserById(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    // In a real app with profiles, you would fetch from a 'profiles' table here.
+    const { data, error } = await supabase.auth.admin.getUserById(id)
+    if (error) return undefined;
+    return {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.email || 'User',
+        role: 'USER',
+    };
 }

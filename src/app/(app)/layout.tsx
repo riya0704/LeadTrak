@@ -19,7 +19,7 @@ export default function ProtectedLayout({
     }
   }, [user, loading]);
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center p-8">
         <div className="flex w-full">
@@ -31,6 +31,10 @@ export default function ProtectedLayout({
         </div>
       </div>
     );
+  }
+
+  if (!user) {
+    return null; // Redirect will handle it
   }
 
   return <AppLayout>{children}</AppLayout>;

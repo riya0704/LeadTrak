@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { AuthContext } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -16,36 +16,45 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Icons } from '@/components/icons';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useToast } from '@/hooks/use-toast';
 
 const FormSchema = z.object({
-  role: z.enum(['USER', 'ADMIN'], { required_error: 'Please select a role.' }),
+  email: z.string().email({ message: 'Please enter a valid email address.' }),
 });
 
 export default function LoginPage() {
-  const { login } = React.useContext(AuthContext);
+  const { login } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
+    defaultValues: {
+      email: '',
+    },
   });
 
-  function onSubmit(data: z.infer<typeof FormSchema>) {
-    const user =
-      data.role === 'ADMIN'
-        ? { id: 'admin-user-id', name: 'Admin User', role: 'ADMIN' as const }
-        : { id: 'standard-user-id', name: 'Standard User', role: 'USER' as const };
-    login(user);
-    router.push('/buyers');
+  async function onSubmit(data: z.infer<typeof FormSchema>) {
+    setIsSubmitting(true);
+    const { error } = await login(data);
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: 'Check your email',
+        description: 'A magic link has been sent to your email address.',
+      });
+    }
+    setIsSubmitting(false);
   }
   
   const loginBg = PlaceHolderImages.find(p => p.id === 'login-background');
@@ -60,14 +69,14 @@ export default function LoginPage() {
                 <h1 className="text-3xl font-bold font-headline">LeadTrak</h1>
             </div>
             <p className="text-balance text-muted-foreground">
-              Welcome! This is a demo login for demonstration purposes.
+              Sign in with a magic link sent to your email.
             </p>
           </div>
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl">Login</CardTitle>
               <CardDescription>
-                Select a user role to access the dashboard.
+                Enter your email to receive a magic link.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -75,27 +84,19 @@ export default function LoginPage() {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                   <FormField
                     control={form.control}
-                    name="role"
+                    name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Select Role</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a role to sign in" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="USER">Standard User</SelectItem>
-                            <SelectItem value="ADMIN">Admin User</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="you@example.com" {...field} />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
-                    Login
+                  <Button type="submit" disabled={isSubmitting} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+                    {isSubmitting ? 'Sending link...' : 'Send Magic Link'}
                   </Button>
                 </form>
               </Form>
