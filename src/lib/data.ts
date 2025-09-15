@@ -1,3 +1,4 @@
+
 import { Buyer, BuyerHistory, User } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './db';
@@ -9,33 +10,68 @@ import { cookies } from 'next/headers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 
-async function seedData() {
-    // Check if users exist, if not, create them
-    const existingUsers = await db.select().from(users);
-    if (existingUsers.length === 0) {
-        // With Supabase auth, we don't need to seed users this way.
-        // Users will be created in the 'auth.users' table upon signup.
-        // We might need to handle profile creation via triggers later.
-    }
+async function seedData(userId: string) {
+  // Check if buyers exist, if not, create them
+  const existingBuyersCountResult = await db.select({ count: sql<number>`count(*)` }).from(buyers);
+  const existingBuyersCount = existingBuyersCountResult[0]?.count ?? 0;
   
-    // Check if buyers exist, if not, create them
-    const existingBuyersCount = await db.select({ count: sql<number>`count(*)` }).from(buyers);
-    if (existingBuyersCount[0].count === 0) {
-        const adminUser = { id: 'admin-user-id', name: 'Admin User', role: 'ADMIN' as const };
-        const standardUser = { id: 'standard-user-id', name: 'Standard User', role: 'USER' as const };
+  if (existingBuyersCount === 0) {
+    console.log("No buyers found, seeding initial data...");
+    const initialLeads: Omit<Buyer, 'id' | 'updatedAt' | 'ownerId'>[] = [
+      {
+        fullName: 'Aarav Sharma',
+        email: 'aarav.sharma@email.com',
+        phone: '9876543210',
+        city: 'Chandigarh',
+        propertyType: 'Apartment',
+        bhk: '3',
+        purpose: 'Buy',
+        budgetMin: 7000000,
+        budgetMax: 9000000,
+        timeline: '3-6m',
+        source: 'Website',
+        status: 'New',
+        notes: 'Looking for a spacious 3BHK in a prime location. Prefers gated communities.',
+        tags: [{ value: 'family' }, { value: 'premium' }],
+      },
+      {
+        fullName: 'Priya Patel',
+        email: 'priya.patel@email.com',
+        phone: '8765432109',
+        city: 'Mohali',
+        propertyType: 'Plot',
+        purpose: 'Buy',
+        budgetMin: 10000000,
+        budgetMax: 15000000,
+        timeline: '0-3m',
+        source: 'Referral',
+        status: 'Qualified',
+        notes: 'Wants to invest in a residential plot for future construction. Good connectivity is a must.',
+        tags: [{ value: 'investment' }],
+      },
+      {
+        fullName: 'Rohan Mehta',
+        email: 'rohan.mehta@email.com',
+        phone: '7654321098',
+        city: 'Zirakpur',
+        propertyType: 'Office',
+        purpose: 'Rent',
+        budgetMin: 50000,
+        budgetMax: 75000,
+        timeline: '>6m',
+        source: 'Call',
+        status: 'Contacted',
+        notes: 'Startup looking for a small office space. Needs to be furnished.',
+        tags: [{ value: 'startup' }, { value: 'furnished' }],
+      },
+    ];
 
-        // For seeding, we'll need some user IDs. In a real scenario, these would
-        // come from your actual Supabase users. For now, we can't be sure what the IDs
-        // will be, so we can't reliably seed data owned by specific users.
-        // We will make all seeded data owned by a placeholder or skip ownership for seeds.
-        // Or, we check for a user from supabase and assign it.
-        // For this demo, let's assume we can't know the user ID, so we can't seed.
-        console.log("Database is empty, but cannot seed without a logged-in user to own the data.");
+    for (const lead of initialLeads) {
+        await createLead({ ...lead, ownerId: userId });
     }
+    console.log("Seeding complete.");
+  }
 }
-
-// Seed only if db is empty
-// seedData().catch(console.error);
 
 // This is a server-side "session" store for the demo.
 // In a real app, this would be a secure, server-side session management system.
@@ -199,15 +235,25 @@ export async function getOrCreateAppUser(supabaseUser: SupabaseUser): Promise<Us
     return existingUser;
   }
 
+  // Check if this is the very first user
+  const existingUsersCountResult = await db.select({ count: sql<number>`count(*)` }).from(users);
+  const isFirstUser = (existingUsersCountResult[0]?.count ?? 0) === 0;
+
   // Create a new user in our public.users table
   const newUser: User = {
     id: supabaseUser.id,
-    name: supabaseUser.email || 'New User',
+    name: supabaseUser.email?.split('@')[0] || 'New User',
     email: supabaseUser.email,
-    role: 'USER',
+    // Make the first user an ADMIN
+    role: isFirstUser ? 'ADMIN' : 'USER',
   };
   
   await db.insert(users).values(newUser).onConflictDoNothing();
+
+  // If this is the first user, seed data for them.
+  if (isFirstUser) {
+      await seedData(newUser.id);
+  }
 
   return newUser;
 }
