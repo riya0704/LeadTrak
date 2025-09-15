@@ -6,9 +6,10 @@ import {
   createLead as dbCreateLead,
   updateLead as dbUpdateLead,
   getLeads as dbGetLeads,
+  getCurrentUser,
 } from './data';
 import { z } from 'zod';
-import { getCurrentUser } from './auth';
+
 
 type FormState = {
   success: boolean;

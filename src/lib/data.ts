@@ -4,7 +4,9 @@ import { db } from './db';
 import { buyers, buyerHistory as buyerHistoryTable, users } from './db/schema';
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { getCurrentUser } from './auth';
+import { supabase } from './supabase/client';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+
 
 async function seedData() {
     // Check if users exist, if not, create them
@@ -32,7 +34,18 @@ async function seedData() {
 }
 
 // Seed only if db is empty
-seedData().catch(console.error);
+// seedData().catch(console.error);
+
+// This is a server-side "session" store for the demo.
+// In a real app, this would be a secure, server-side session management system.
+export async function getCurrentUser(): Promise<User | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const appUser = await getUserById(session.user.id);
+      return appUser || null;
+    }
+    return null;
+}
 
 export async function getLeads({
   page = 1,
@@ -159,15 +172,29 @@ export async function getLeadHistory(buyerId: string, limit: number = 5): Promis
     return history.map(h => ({ ...h, changedAt: h.changedAt.toISOString()}));
 }
 
-// This function is no longer needed as we are not seeding users
 export async function getUserById(id: string): Promise<User | undefined> {
-    // In a real app with profiles, you would fetch from a 'profiles' table here.
-    const { data, error } = await supabase.auth.admin.getUserById(id)
-    if (error) return undefined;
-    return {
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.email || 'User',
-        role: 'USER',
-    };
+    const result = await db.select().from(users).where(eq(users.id, id));
+    if (result.length > 0) {
+      return result[0];
+    }
+    return undefined;
+}
+
+export async function getOrCreateAppUser(supabaseUser: SupabaseUser): Promise<User> {
+  const existingUser = await getUserById(supabaseUser.id);
+  if (existingUser) {
+    return existingUser;
+  }
+
+  // Create a new user in our public.users table
+  const newUser: User = {
+    id: supabaseUser.id,
+    name: supabaseUser.email || 'New User',
+    email: supabaseUser.email,
+    role: 'USER',
+  };
+  
+  await db.insert(users).values(newUser).onConflictDoNothing();
+
+  return newUser;
 }

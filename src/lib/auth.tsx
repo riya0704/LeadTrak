@@ -5,6 +5,7 @@ import type { User } from './types';
 import { supabase } from './supabase/client';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
+import { getOrCreateAppUser } from './data';
 
 interface AuthContextType {
   user: User | null;
@@ -20,21 +21,6 @@ export const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
 });
 
-// This is a server-side "session" store for the demo.
-// In a real app, this would be a secure, server-side session management system.
-let currentUser: User | null = null;
-export async function getCurrentUser(): Promise<User | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-        return {
-            id: user.id,
-            name: user.email || 'User',
-            role: 'USER', // default role, can be expanded
-        }
-    }
-    return null;
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,12 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const getSession = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-            const user = session.user;
-            setUser({
-                id: user.id,
-                name: user.email || 'User',
-                role: 'USER' // Assign a default role
-            });
+            const appUser = await getOrCreateAppUser(session.user);
+            setUser(appUser);
         }
         setLoading(false);
     };
@@ -59,13 +41,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session) {
-          const user = session.user;
-          setUser({
-            id: user.id,
-            name: user.email || 'User',
-            role: 'USER'
-          });
-          router.push('/buyers');
+          const appUser = await getOrCreateAppUser(session.user);
+          setUser(appUser);
+          if (_event === 'SIGNED_IN') {
+            router.push('/buyers');
+          }
         } else {
           setUser(null);
           router.push('/login');

@@ -28,8 +28,9 @@ export const statusEnum = pgEnum('status', StatusOptions);
 export const userRoleEnum = pgEnum('user_role', ['USER', 'ADMIN']);
 
 export const users = pgTable('users', {
-  id: text('id').primaryKey(),
+  id: text('id').primaryKey(), // This will be the Supabase auth user ID
   name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }),
   role: userRoleEnum('role').notNull(),
 });
 
@@ -49,7 +50,7 @@ export const buyers = pgTable('buyers', {
   status: statusEnum('status').notNull().default('New'),
   notes: text('notes'),
   tags: jsonb('tags').$type<{ value: string }[]>().default([]),
-  ownerId: text('owner_id').references(() => users.id).notNull(),
+  ownerId: text('owner_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
