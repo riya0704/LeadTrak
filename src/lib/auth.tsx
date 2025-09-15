@@ -17,8 +17,8 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  login: async () => {},
-  logout: async () => {},
+  login: async () => { throw new Error('Login function not implemented'); },
+  logout: async () => { throw new Error('Logout function not implemented'); },
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         if (session?.user) {
             try {
                 const appUser = await getOrCreateAppUser(session.user);
@@ -50,7 +50,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
     
     // Initial check
-    supabase.auth.getSession().then(async ({ data: { session }}) => {
+    const checkUser = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
             try {
                 const appUser = await getOrCreateAppUser(session.user);
@@ -61,7 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         }
         setLoading(false);
-    });
+    };
+
+    checkUser();
 
 
     return () => {
