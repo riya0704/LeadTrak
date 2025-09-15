@@ -2,10 +2,10 @@
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { User } from './types';
-import { supabase } from './supabase/client';
+import { createBrowserClient } from '@supabase/ssr';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { getOrCreateAppUser } from './data';
+import { getOrCreateAppUser } from './actions';
 
 interface AuthContextType {
   user: User | null;
@@ -25,6 +25,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
   useEffect(() => {
     const getSession = async () => {
@@ -56,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [router]);
+  }, [router, supabase.auth]);
 
   const login = async (data: { email: string }) => {
     return supabase.auth.signInWithOtp({ 

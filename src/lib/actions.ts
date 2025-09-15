@@ -7,8 +7,10 @@ import {
   updateLead as dbUpdateLead,
   getLeads as dbGetLeads,
   getCurrentUser,
+  getOrCreateAppUser as dbGetOrCreateAppUser
 } from './data';
 import { z } from 'zod';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 
 type FormState = {
@@ -21,6 +23,14 @@ type FormState = {
   importedCount?: number;
   data?: any;
 };
+
+// AUTH ACTIONS
+export async function getOrCreateAppUser(supabaseUser: SupabaseUser) {
+    return dbGetOrCreateAppUser(supabaseUser);
+}
+
+
+// LEAD ACTIONS
 
 // CREATE LEAD
 export async function createLead(data: Buyer): Promise<FormState> {

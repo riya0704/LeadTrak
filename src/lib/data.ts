@@ -4,7 +4,8 @@ import { db } from './db';
 import { buyers, buyerHistory as buyerHistoryTable, users } from './db/schema';
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { supabase } from './supabase/client';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 
@@ -39,6 +40,18 @@ async function seedData() {
 // This is a server-side "session" store for the demo.
 // In a real app, this would be a secure, server-side session management system.
 export async function getCurrentUser(): Promise<User | null> {
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get(name: string) {
+              return cookieStore.get(name)?.value;
+            },
+          },
+        }
+    );
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       const appUser = await getUserById(session.user.id);
