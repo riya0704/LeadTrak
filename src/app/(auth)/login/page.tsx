@@ -27,7 +27,7 @@ const FormSchema = z.object({
 });
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -38,6 +38,12 @@ export default function LoginPage() {
       email: '',
     },
   });
+  
+  React.useEffect(() => {
+    if (user) {
+      router.replace('/buyers');
+    }
+  }, [user, router]);
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     setIsSubmitting(true);
@@ -48,13 +54,14 @@ export default function LoginPage() {
         title: 'Error',
         description: error.message,
       });
+      setIsSubmitting(false);
     } else {
       toast({
         title: 'Check your email',
         description: 'A magic link has been sent to your email address.',
       });
+      // Don't set isSubmitting to false, as the page will redirect.
     }
-    setIsSubmitting(false);
   }
   
   const loginBg = PlaceHolderImages.find(p => p.id === 'login-background');

@@ -1,7 +1,7 @@
 'use client';
 
 import { useContext, useEffect } from 'react';
-import { redirect } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AuthContext } from '@/lib/auth';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,12 +12,14 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const { user, loading } = useContext(AuthContext);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) {
-      redirect('/login');
+      router.replace('/login');
     }
-  }, [user, loading]);
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -34,7 +36,7 @@ export default function ProtectedLayout({
   }
 
   if (!user) {
-    return null; // Redirect will handle it
+    return null; // Redirect is handled by the effect
   }
 
   return <AppLayout>{children}</AppLayout>;

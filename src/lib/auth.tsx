@@ -4,7 +4,7 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { User } from './types';
 import { createBrowserClient } from '@supabase/ssr';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getOrCreateAppUser } from './actions';
 
 interface AuthContextType {
@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,42 +33,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    const getSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-            const appUser = await getOrCreateAppUser(session.user);
-            setUser(appUser);
-        }
-        setLoading(false);
-    };
-    
-    getSession();
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session) {
           const appUser = await getOrCreateAppUser(session.user);
           setUser(appUser);
           if (_event === 'SIGNED_IN') {
-            router.push('/buyers');
+             // Use replace to avoid the auth code in browser history
+            router.replace('/buyers');
           }
         } else {
           setUser(null);
-          router.push('/login');
+           // Only redirect to login if not already on a public page
+           if (window.location.pathname !== '/login') {
+            router.replace('/login');
+           }
+        }
+        // Initial load is done after first auth check
+        if (loading) {
+            setLoading(false);
         }
       }
     );
 
+    // Initial check in case the component mounts after auth state is settled
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (session) {
+            const appUser = await getOrCreateAppUser(session.user);
+            setUser(appUser);
+        }
+        setLoading(false);
+    });
+
     return () => {
       subscription?.unsubscribe();
     };
-  }, [router, supabase.auth]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = async (data: { email: string }) => {
+    // Redirect to the buyers page after login
+    const redirectTo = `${window.location.origin}/auth/callback`;
     return supabase.auth.signInWithOtp({ 
         email: data.email,
         options: {
-            emailRedirectTo: window.location.origin + '/buyers',
+            emailRedirectTo: redirectTo,
         }
     });
   };
