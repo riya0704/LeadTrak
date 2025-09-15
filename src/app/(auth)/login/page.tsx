@@ -118,6 +118,7 @@ export default function LoginPage() {
             alt={loginBg.description}
             data-ai-hint={loginBg.imageHint}
             fill
+            sizes="50vw"
             className="object-cover dark:brightness-[0.3]"
           />
         )}
