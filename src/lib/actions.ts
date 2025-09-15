@@ -7,7 +7,8 @@ import {
   updateLead as dbUpdateLead,
   getLeads as dbGetLeads,
   getCurrentUser,
-  getOrCreateAppUser as dbGetOrCreateAppUser
+  getOrCreateAppUser as dbGetOrCreateAppUser,
+  getLeadById,
 } from './data';
 import { z } from 'zod';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -73,6 +74,16 @@ export async function updateLead(data: Buyer): Promise<FormState> {
   }
   
   try {
+    const oldLead = await getLeadById(validatedFields.data.id!);
+    if (!oldLead) {
+        return { success: false, error: 'Lead not found' };
+    }
+
+    // Concurrency Check
+    if (validatedFields.data.updatedAt && new Date(oldLead.updatedAt).getTime() > new Date(validatedFields.data.updatedAt).getTime()) {
+        return { success: false, error: 'This record has been updated by someone else. Please refresh and try again.' };
+    }
+    
     const result = await dbUpdateLead(validatedFields.data, user);
     if (!result.success) {
       return { success: false, error: result.error };
@@ -102,7 +113,7 @@ export async function importLeads(csvData: string): Promise<FormState> {
   }
 
   const errors: { row: number; errors: string[] }[] = [];
-  const validLeads: Buyer[] = [];
+  let validLeads: Omit<Buyer, "id" | "updatedAt">[] = [];
 
   for (const [index, line] of rows.entries()) {
     if (!line.trim()) continue; // Skip empty lines
@@ -119,21 +130,13 @@ export async function importLeads(csvData: string): Promise<FormState> {
     
     const fullLeadData = {
         ...rowData,
-        ownerId: user.id,
         status: rowData.status || 'New',
     };
 
     const validationResult = PartialBuyerSchema.safeParse(fullLeadData);
 
     if (validationResult.success) {
-        const fullValidation = BuyerSchema.safeParse(validationResult.data);
-        if (fullValidation.success) {
-            validLeads.push(fullValidation.data);
-        } else {
-            const fieldErrors = fullValidation.error.flatten().fieldErrors;
-            const errorMessages = Object.entries(fieldErrors).map(([field, messages]) => `${field}: ${messages.join(', ')}`);
-            errors.push({ row: index + 2, errors: errorMessages });
-        }
+        validLeads.push(validationResult.data as Omit<Buyer, "id" | "updatedAt">);
     } else {
         const fieldErrors = validationResult.error.flatten().fieldErrors;
         const errorMessages = Object.entries(fieldErrors).map(([field, messages]) => `${field}: ${messages.join(', ')}`);
@@ -141,20 +144,16 @@ export async function importLeads(csvData: string): Promise<FormState> {
     }
   }
 
-  // Transactional insert
-  if (errors.length === 0 && validLeads.length > 0) {
+  if (errors.length > 0) {
+     return { success: false, error: "CSV contains errors. No leads were imported.", errors, importedCount: 0 };
+  }
+  
+  if (validLeads.length > 0) {
     for (const lead of validLeads) {
       await dbCreateLead({ ...lead, ownerId: user.id });
     }
     revalidatePath('/buyers');
     return { success: true, errors: [], importedCount: validLeads.length };
-  } else if (validLeads.length > 0 && errors.length > 0) {
-    // This case implements partial import: only valid rows.
-    // The prompt requires transactional insert which means all or nothing.
-    // I am choosing all-or-nothing based on the prompt.
-    return { success: false, error: "CSV contains errors. No leads were imported.", errors, importedCount: 0 };
-  } else if (errors.length > 0) {
-    return { success: false, error: "CSV contains errors. No leads were imported.", errors, importedCount: 0 };
   }
 
   return { success: true, errors: [], importedCount: 0 };
