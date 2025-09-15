@@ -4,7 +4,7 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { User } from './types';
 import { createBrowserClient } from '@supabase/ssr';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { getOrCreateAppUser } from './actions';
 
 interface AuthContextType {
@@ -25,7 +25,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,35 +34,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        if (session) {
-          const appUser = await getOrCreateAppUser(session.user);
-          setUser(appUser);
-          if (_event === 'SIGNED_IN') {
-             // Use replace to avoid the auth code in browser history
-            router.replace('/buyers');
-          }
+        if (session?.user) {
+            try {
+                const appUser = await getOrCreateAppUser(session.user);
+                setUser(appUser);
+            } catch (e) {
+                console.error("Failed to get or create app user", e);
+                setUser(null);
+            }
         } else {
           setUser(null);
-           // Only redirect to login if not already on a public page
-           if (window.location.pathname !== '/login') {
-            router.replace('/login');
-           }
         }
-        // Initial load is done after first auth check
-        if (loading) {
-            setLoading(false);
-        }
+        setLoading(false);
       }
     );
-
-    // Initial check in case the component mounts after auth state is settled
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-        if (session) {
-            const appUser = await getOrCreateAppUser(session.user);
-            setUser(appUser);
+    
+    // Initial check
+    supabase.auth.getSession().then(async ({ data: { session }}) => {
+        if (session?.user) {
+            try {
+                const appUser = await getOrCreateAppUser(session.user);
+                setUser(appUser);
+            } catch(e) {
+                console.error("Failed to get or create app user on initial check", e);
+                setUser(null);
+            }
         }
         setLoading(false);
     });
+
 
     return () => {
       subscription?.unsubscribe();
@@ -72,7 +71,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (data: { email: string }) => {
-    // Redirect to the buyers page after login
     const redirectTo = `${window.location.origin}/auth/callback`;
     return supabase.auth.signInWithOtp({ 
         email: data.email,
