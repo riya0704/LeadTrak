@@ -20,7 +20,7 @@ export type Source = z.infer<typeof SourceEnum>;
 export type Status = z.infer<typeof StatusEnum>;
 export type Tag = z.infer<typeof TagSchema>;
 
-export type Buyer = z.infer<typeof BuyerSchema>;
+export type Buyer = z.infer<typeof BuyerSchema> & { id: string, updatedAt: string };
 
 export type User = {
   id: string;
