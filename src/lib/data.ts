@@ -168,9 +168,12 @@ export async function createLead(data: Omit<Buyer, 'id' | 'updatedAt'>): Promise
 }
 
 export async function updateLead(data: Buyer, user: User): Promise<{success: boolean, error?: string}> {
-  const { id, updatedAt, ...updateData } = data;
+  const { id, ...updateData } = data;
+  if (!id) {
+    return { success: false, error: 'Lead ID is missing' };
+  }
   
-  const [oldLead] = await db.select().from(buyers).where(eq(buyers.id, id));
+  const oldLead = await getLeadById(id);
 
   if (!oldLead) {
     return { success: false, error: 'Lead not found' };
@@ -182,11 +185,12 @@ export async function updateLead(data: Buyer, user: User): Promise<{success: boo
     return { success: false, error: 'You do not have permission to edit this lead.' };
   }
 
-  if (updatedAt && new Date(oldLead.updatedAt).getTime() > new Date(updatedAt).getTime()) {
+  if (data.updatedAt && new Date(oldLead.updatedAt).getTime() > new Date(data.updatedAt).getTime()) {
     return { success: false, error: 'This record has been updated by someone else. Please refresh and try again.' };
   }
 
   const newUpdatedAt = new Date();
+  
   const [updated] = await db.update(buyers)
     .set({ ...updateData, updatedAt: newUpdatedAt })
     .where(eq(buyers.id, id))
@@ -201,6 +205,7 @@ export async function updateLead(data: Buyer, user: User): Promise<{success: boo
 
   if (Object.keys(diff).length > 0) {
       await db.insert(buyerHistoryTable).values({
+          id: uuidv4(),
           buyerId: id,
           changedAt: newUpdatedAt,
           changedBy: { id: user.id, name: user.name, role: user.role },
